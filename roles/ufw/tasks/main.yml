@@ -7,7 +7,7 @@
 #   80    TCP  → HTTP (Let's Encrypt HTTP Challenge + redirection HTTPS)
 #   443   TCP  → HTTPS (Traefik)
 #   25565 TCP  → Minecraft (TCP passthrough Traefik)
-#   1883  TCP  → MQTT Mosquitto (LAN uniquement — restreint)
+#   1883  TCP  → MQTT Mosquitto (LAN uniquement)
 #   22121 UDP  → WireGuard VPN (Freebox Delta natif)
 # ─────────────────────────────────────────────
 
@@ -35,43 +35,37 @@
     rule: allow
     port: "22"
     proto: tcp
-    comment: "SSH - acces administrateur"
 
 - name: "Autorisation HTTP (port 80 TCP)"
   community.general.ufw:
     rule: allow
     port: "80"
     proto: tcp
-    comment: "HTTP - Challenge Let's Encrypt + redirection HTTPS"
 
 - name: "Autorisation HTTPS (port 443 TCP)"
   community.general.ufw:
     rule: allow
     port: "443"
     proto: tcp
-    comment: "HTTPS - Traefik reverse proxy"
 
 - name: "Autorisation Minecraft (port 25565 TCP)"
   community.general.ufw:
     rule: allow
     port: "25565"
     proto: tcp
-    comment: "Minecraft - TCP passthrough Traefik"
 
 - name: "Autorisation WireGuard (port 22121 UDP)"
   community.general.ufw:
     rule: allow
     port: "22121"
     proto: udp
-    comment: "WireGuard VPN - Freebox Delta natif"
 
-- name: "Restriction MQTT Mosquitto au reseau local uniquement"
+- name: "Restriction MQTT au reseau local (port 1883 TCP)"
   community.general.ufw:
     rule: allow
     port: "1883"
     proto: tcp
     src: 192.168.1.0/24
-    comment: "MQTT Mosquitto - LAN uniquement"
 
 # ── Activation ───────────────────────────────
 

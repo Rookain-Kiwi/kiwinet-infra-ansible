@@ -1,0 +1,52 @@
+# roles/docker/tasks/main.yml
+# Installation Docker CE + plugin Compose v2 pour ARM64 (Debian)
+# Suit la procédure officielle Docker : ajout du dépôt officiel avant install
+
+- name: Suppression des anciennes versions Docker si présentes
+  ansible.builtin.apt:
+    name:
+      - docker.io
+      - docker-doc
+      - docker-compose
+      - podman-docker
+      - containerd
+      - runc
+    state: absent
+
+- name: Ajout de la clé GPG officielle Docker
+  ansible.builtin.apt_key:
+    url: https://download.docker.com/linux/debian/gpg
+    keyring: /etc/apt/keyrings/docker.gpg
+    state: present
+
+- name: Ajout du dépôt Docker CE (ARM64 / Debian)
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.gpg]
+      https://download.docker.com/linux/debian
+      {{ ansible_distribution_release }} stable
+    filename: docker
+    state: present
+
+- name: Installation Docker CE et plugin Compose v2
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    update_cache: true
+    state: present
+
+- name: Ajout de rookain au groupe docker
+  ansible.builtin.user:
+    name: rookain
+    groups: docker
+    append: true
+
+- name: Activation et démarrage du service Docker
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true

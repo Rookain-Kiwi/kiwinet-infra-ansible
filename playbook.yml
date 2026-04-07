@@ -1,0 +1,21 @@
+# playbook.yml
+# Playbook principal — provisioning complet de la VM Kiwinet depuis zéro
+# Ordre d'exécution : base → ssh → ufw → docker → kiwinet
+# Prérequis : accès SSH avec clé kiwinet, sudo sans mot de passe
+
+- name: Provisioning VM Kiwinet
+  hosts: kiwinet
+  gather_facts: true
+
+  pre_tasks:
+    - name: Vérification architecture ARM64
+      ansible.builtin.fail:
+        msg: "Ce playbook cible uniquement une VM ARM64 (AArch64). Architecture détectée : {{ ansible_architecture }}"
+      when: ansible_architecture != "aarch64"
+
+  roles:
+    - base
+    - ssh
+    - ufw
+    - docker
+    - kiwinet

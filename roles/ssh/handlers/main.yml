@@ -1,0 +1,9 @@
+# ─────────────────────────────────────────────
+# roles/ssh/handlers/main.yml
+# Handlers du rôle ssh
+# ─────────────────────────────────────────────
+
+- name: Redémarrage sshd
+  ansible.builtin.service:
+    name: sshd
+    state: restarted

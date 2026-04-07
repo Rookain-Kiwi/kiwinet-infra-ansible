@@ -1,0 +1,56 @@
+# roles/kiwinet/tasks/main.yml
+# Structure /opt, clone des repos Git, démarrage des stacks Docker Compose
+# Ce rôle suppose Docker installé et l'utilisateur rookain dans le groupe docker
+
+- name: Création des répertoires de base /opt/kiwinet-*
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: rookain
+    group: rookain
+    mode: '0755'
+  loop:
+    - /opt/kiwinet-services
+    - /opt/kiwinet-web
+    - /opt/kiwinet-observability
+
+- name: Clone du repo kiwinet-services (Traefik, Plex, Minecraft, HA)
+  ansible.builtin.git:
+    repo: git@github.com:Rookain-Kiwi/kiwinet-services.git
+    dest: /opt/kiwinet-services
+    version: main
+    accept_hostkey: true
+  become_user: rookain
+
+- name: Clone du repo kiwinet-observability (Prometheus, Grafana, Uptime Kuma)
+  ansible.builtin.git:
+    repo: git@github.com:Rookain-Kiwi/kiwinet-observability.git
+    dest: /opt/kiwinet-observability
+    version: main
+    accept_hostkey: true
+  become_user: rookain
+
+- name: Vérification de la présence du fichier .env Traefik (secrets non gérés par Ansible)
+  ansible.builtin.stat:
+    path: /opt/kiwinet-services/traefik/.env
+  register: traefik_env
+
+- name: Avertissement si .env Traefik absent
+  ansible.builtin.debug:
+    msg: >
+      ATTENTION : /opt/kiwinet-services/traefik/.env est absent.
+      Déployer manuellement les fichiers de secrets avant de lancer les stacks.
+  when: not traefik_env.stat.exists
+
+- name: Démarrage de la stack Traefik
+  community.docker.docker_compose_v2:
+    project_src: /opt/kiwinet-services/traefik
+    state: present
+  become_user: rookain
+  when: traefik_env.stat.exists
+
+- name: Démarrage de la stack observabilité
+  community.docker.docker_compose_v2:
+    project_src: /opt/kiwinet-observability
+    state: present
+  become_user: rookain

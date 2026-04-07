@@ -1,0 +1,47 @@
+# roles/ufw/tasks/main.yml
+# Configuration UFW — politique par défaut restrictive, ouvertures explicites
+# Ordre important : toujours autoriser SSH avant d'activer UFW
+
+- name: Politique par défaut : refuser les connexions entrantes
+  community.general.ufw:
+    policy: deny
+    direction: incoming
+
+- name: Politique par défaut : autoriser les connexions sortantes
+  community.general.ufw:
+    policy: allow
+    direction: outgoing
+
+- name: Autorisation SSH (port 22)
+  community.general.ufw:
+    rule: allow
+    port: '22'
+    proto: tcp
+
+- name: Autorisation HTTP (port 80 — HTTP Challenge Let's Encrypt + redirection HTTPS)
+  community.general.ufw:
+    rule: allow
+    port: '80'
+    proto: tcp
+
+- name: Autorisation HTTPS (port 443)
+  community.general.ufw:
+    rule: allow
+    port: '443'
+    proto: tcp
+
+- name: Autorisation Minecraft (port 25565 — TCP passthrough Traefik)
+  community.general.ufw:
+    rule: allow
+    port: '25565'
+    proto: tcp
+
+- name: Autorisation WireGuard (UDP — port défini localement, non committé)
+  community.general.ufw:
+    rule: allow
+    port: "{{ wireguard_port | default('51820') }}"
+    proto: udp
+
+- name: Activation UFW
+  community.general.ufw:
+    state: enabled

@@ -1,0 +1,45 @@
+# roles/base/tasks/main.yml
+# Provisioning système de base : packages, locale, timezone
+# Doit s'exécuter en premier — les autres rôles en dépendent
+
+- name: Mise à jour du cache apt
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Mise à niveau des paquets système
+  ansible.builtin.apt:
+    upgrade: dist
+
+- name: Installation des packages système essentiels
+  ansible.builtin.apt:
+    name:
+      - curl
+      - wget
+      - git
+      - gnupg
+      - ca-certificates
+      - lsb-release
+      - apt-transport-https
+      - software-properties-common
+      - python3
+      - python3-pip
+      - ufw
+      - unzip
+      - htop
+      - rsync
+    state: present
+
+- name: Configuration de la locale fr_FR.UTF-8
+  ansible.builtin.locale_gen:
+    name: fr_FR.UTF-8
+    state: present
+
+- name: Définition de la locale système par défaut
+  ansible.builtin.command:
+    cmd: localectl set-locale LANG=fr_FR.UTF-8
+  changed_when: true
+
+- name: Configuration du fuseau horaire Europe/Paris
+  community.general.timezone:
+    name: Europe/Paris

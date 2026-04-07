@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────
+# roles/ssh/tasks/main.yml
+# Rôle : ssh — Sécurisation de l'accès SSH
+#
+# Responsabilités :
+#   - Ajout de la clé kiwinet_deploy (CI/CD GitHub Actions)
+#   - Désactivation de l'authentification par mot de passe
+#   - Désactivation du login root direct
+#
+# Note : la clé kiwinet (accès manuel) est injectée par Freebox OS
+# via cloud-init à la création de la VM — elle n'est pas gérée ici.
+# ─────────────────────────────────────────────
+
+# ── Répertoire .ssh ───────────────────────────
+
+- name: Création du répertoire .ssh pour rookain
+  ansible.builtin.file:
+    path: /home/rookain/.ssh
+    state: directory
+    owner: rookain
+    group: rookain
+    mode: "0700"
+
+# ── Clé CI/CD ────────────────────────────────
+
+- name: Ajout de la clé kiwinet_deploy (GitHub Actions)
+  ansible.posix.authorized_key:
+    user: rookain
+    state: present
+    # Placer kiwinet_deploy.pub dans roles/ssh/files/ (gitignored)
+    key: "{{ lookup('file', 'files/kiwinet_deploy.pub') }}"
+
+# ── Hardening sshd_config ────────────────────
+
+- name: Désactivation de l'authentification par mot de passe
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PasswordAuthentication"
+    line: "PasswordAuthentication no"
+    state: present
+  notify: Redémarrage sshd
+
+- name: Désactivation du login root par SSH
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PermitRootLogin"
+    line: "PermitRootLogin no"
+    state: present
+  notify: Redémarrage sshd
+
+- name: Désactivation de l'authentification par challenge-response
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?ChallengeResponseAuthentication"
+    line: "ChallengeResponseAuthentication no"
+    state: present
+  notify: Redémarrage sshd

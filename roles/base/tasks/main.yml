@@ -1,17 +1,28 @@
+# ─────────────────────────────────────────────
 # roles/base/tasks/main.yml
-# Provisioning système de base : packages, locale, timezone
-# Doit s'exécuter en premier — les autres rôles en dépendent
+# Rôle : base — Système minimal propre
+#
+# Responsabilités :
+#   - Mise à jour des paquets apt
+#   - Installation des dépendances système essentielles
+#   - Configuration de la locale (fr_FR.UTF-8)
+#   - Configuration du fuseau horaire (Europe/Paris)
+# ─────────────────────────────────────────────
 
-- name: Mise à jour du cache apt
+# ── Mise à jour système ─────────────────────
+
+- name: "Mise à jour du cache apt"
   ansible.builtin.apt:
     update_cache: true
     cache_valid_time: 3600
 
-- name: Mise à niveau des paquets système
+- name: "Mise à niveau des paquets système"
   ansible.builtin.apt:
     upgrade: dist
 
-- name: Installation des packages système essentiels
+# ── Paquets système essentiels ───────────────
+
+- name: "Installation des packages système essentiels"
   ansible.builtin.apt:
     name:
       - curl
@@ -30,16 +41,28 @@
       - rsync
     state: present
 
-- name: Configuration de la locale fr_FR.UTF-8
+# ── Locale ───────────────────────────────────
+
+- name: "Génération de la locale fr_FR.UTF-8"
   ansible.builtin.locale_gen:
     name: fr_FR.UTF-8
     state: present
 
-- name: Définition de la locale système par défaut
+- name: "Lecture de la locale système actuelle"
+  ansible.builtin.command:
+    cmd: localectl status
+  register: locale_status
+  changed_when: false
+
+- name: "Définition de la locale système par défaut"
   ansible.builtin.command:
     cmd: localectl set-locale LANG=fr_FR.UTF-8
+  # Idempotent : n'applique que si la locale n'est pas déjà fr_FR.UTF-8
+  when: "'LANG=fr_FR.UTF-8' not in locale_status.stdout"
   changed_when: true
 
-- name: Configuration du fuseau horaire Europe/Paris
+# ── Timezone ─────────────────────────────────
+
+- name: "Configuration du fuseau horaire Europe/Paris"
   community.general.timezone:
     name: Europe/Paris

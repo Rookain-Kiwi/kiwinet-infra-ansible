@@ -1,47 +1,81 @@
+# ─────────────────────────────────────────────
 # roles/ufw/tasks/main.yml
-# Configuration UFW — politique par défaut restrictive, ouvertures explicites
-# Ordre important : toujours autoriser SSH avant d'activer UFW
+# Rôle : ufw — Configuration du firewall
+#
+# Ports ouverts :
+#   22    TCP  → SSH
+#   80    TCP  → HTTP (Let's Encrypt HTTP Challenge + redirection HTTPS)
+#   443   TCP  → HTTPS (Traefik)
+#   25565 TCP  → Minecraft (TCP passthrough Traefik)
+#   1883  TCP  → MQTT Mosquitto (LAN uniquement — restreint)
+#   22121 UDP  → WireGuard VPN (Freebox Delta natif)
+# ─────────────────────────────────────────────
 
-- name: Politique par défaut : refuser les connexions entrantes
+# ── Installation ─────────────────────────────
+
+- name: "Installation de ufw"
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+# ── Politique par défaut ─────────────────────
+
+- name: "Politique par défaut : refus entrant, autorisation sortant"
   community.general.ufw:
-    policy: deny
-    direction: incoming
+    direction: "{{ item.direction }}"
+    default: "{{ item.policy }}"
+  loop:
+    - { direction: incoming, policy: deny }
+    - { direction: outgoing, policy: allow }
 
-- name: Politique par défaut : autoriser les connexions sortantes
-  community.general.ufw:
-    policy: allow
-    direction: outgoing
+# ── Règles entrantes ─────────────────────────
 
-- name: Autorisation SSH (port 22)
+- name: "Autorisation SSH (port 22 TCP)"
   community.general.ufw:
     rule: allow
-    port: '22'
+    port: "22"
     proto: tcp
+    comment: "SSH — accès administrateur"
 
-- name: Autorisation HTTP (port 80 — HTTP Challenge Let's Encrypt + redirection HTTPS)
+- name: "Autorisation HTTP (port 80 TCP)"
   community.general.ufw:
     rule: allow
-    port: '80'
+    port: "80"
     proto: tcp
+    comment: "HTTP — Let's Encrypt Challenge + redirection HTTPS"
 
-- name: Autorisation HTTPS (port 443)
+- name: "Autorisation HTTPS (port 443 TCP)"
   community.general.ufw:
     rule: allow
-    port: '443'
+    port: "443"
     proto: tcp
+    comment: "HTTPS — Traefik reverse proxy"
 
-- name: Autorisation Minecraft (port 25565 — TCP passthrough Traefik)
+- name: "Autorisation Minecraft (port 25565 TCP)"
   community.general.ufw:
     rule: allow
-    port: '25565'
+    port: "25565"
     proto: tcp
+    comment: "Minecraft — TCP passthrough Traefik"
 
-- name: Autorisation WireGuard (UDP — port défini localement, non committé)
+- name: "Autorisation WireGuard (port 22121 UDP)"
   community.general.ufw:
     rule: allow
-    port: "{{ wireguard_port | default('51820') }}"
+    port: "22121"
     proto: udp
+    comment: "WireGuard VPN — Freebox Delta natif"
 
-- name: Activation UFW
+- name: "Restriction MQTT Mosquitto au réseau local uniquement"
+  community.general.ufw:
+    rule: allow
+    port: "1883"
+    proto: tcp
+    src: 192.168.1.0/24
+    comment: "MQTT Mosquitto — LAN uniquement"
+
+# ── Activation ───────────────────────────────
+
+- name: "Activation de ufw"
   community.general.ufw:
     state: enabled
+    logging: "on"

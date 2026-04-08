@@ -1,0 +1,51 @@
+# ─────────────────────────────────────────────
+# roles/storage/tasks/main.yml
+# Rôle : storage — Montages réseau NAS Freebox
+#
+# Responsabilités :
+#   - Installation du client CIFS
+#   - Montage des partages NAS Freebox (CIFS/SMB3)
+#
+# Prérequis :
+#   - La VM doit être créée SANS l'option "Accès aux disques Freebox"
+#     dans Freebox OS (les montages sont gérés ici, pas par cloud-init)
+#   - Le NAS Freebox doit être accessible sur le réseau local
+# ─────────────────────────────────────────────
+
+# ── Dépendances système ───────────────────────
+
+- name: "Installation du client CIFS"
+  ansible.builtin.apt:
+    name:
+      - cifs-utils
+    state: present
+
+# ── Points de montage ─────────────────────────
+
+- name: "Création des points de montage"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: rookain
+    group: rookain
+    mode: "0755"
+  loop:
+    - /mnt/Kodi
+    - /mnt/SeedBox
+    - /mnt/VMs
+    - /mnt/Data
+
+# ── Montages CIFS ─────────────────────────────
+
+- name: "Montage des partages NAS Freebox (CIFS)"
+  ansible.builtin.mount:
+    path: "{{ item.path }}"
+    src: "{{ item.src }}"
+    fstype: cifs
+    opts: "guest,uid=rookain,gid=rookain,vers=3.0,cache=strict,serverino,_netdev,x-systemd.automount,x-systemd.device-timeout=30"
+    state: mounted
+  loop:
+    - { path: /mnt/Kodi,    src: "//mafreebox.freebox.fr/Kodi" }
+    - { path: /mnt/SeedBox, src: "//mafreebox.freebox.fr/SeedBox" }
+    - { path: /mnt/VMs,     src: "//mafreebox.freebox.fr/VMs" }
+    - { path: /mnt/Data,    src: "//mafreebox.freebox.fr/Data" }

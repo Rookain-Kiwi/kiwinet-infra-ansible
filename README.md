@@ -2,7 +2,7 @@
 
 Provisioning Ansible de la VM Kiwinet — Debian ARM64 (Freebox Delta).
 
-Ce repo contient le playbook et les rôles permettant de reproduire l'état cible de la VM depuis zéro : packages système, hardening SSH, firewall UFW, installation Docker CE, structure des répertoires et démarrage des stacks.
+Ce repo contient le playbook et les rôles permettant de reproduire l'état cible de la VM depuis zéro : packages système, hardening SSH, firewall UFW, installation Docker CE, montages réseau NAS, structure des répertoires et démarrage des stacks.
 
 ## Contexte
 
@@ -21,6 +21,7 @@ kiwinet-infra-vm/
 │   ├── ssh/             # Hardening sshd_config, clés autorisées
 │   ├── ufw/             # Firewall (22, 80, 443, 25565, WireGuard UDP)
 │   ├── docker/          # Docker CE ARM64 + plugin Compose v2
+│   ├── storage/         # Montages CIFS NAS Freebox (/mnt/Kodi, SeedBox, VMs, Data)
 │   └── kiwinet/         # Répertoires /opt, clone repos, docker compose up
 └── docs/
     └── usage.md         # Prérequis et commandes

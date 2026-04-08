@@ -18,8 +18,9 @@ La Freebox Delta injecte la clé SSH via cloud-init au premier démarrage — au
    cat ~/.ssh/kiwinet.pub
    ```
 5. Mot de passe : laisser vide (authentification par clé uniquement)
-6. Suivant → choisir la taille du disque → Terminer
-7. Allumer la VM, attendre qu'une IP apparaisse dans l'interface
+6. **Accès aux disques Freebox : laisser décoché** — les montages CIFS sont gérés par le rôle `storage`, pas par cloud-init
+7. Suivant → choisir la taille du disque → Terminer
+8. Allumer la VM, attendre qu'une IP apparaisse dans l'interface
 
 **Optionnel mais recommandé :** fixer une IP statique dans Freebox OS (Paramètres DHCP → Baux statiques) pour éviter un changement d'IP après redémarrage.
 
@@ -64,7 +65,7 @@ ansible kiwinet -m ping
 ansible-playbook playbook.yml
 ```
 
-Le playbook s'exécute dans l'ordre : `base → ssh → ufw → docker → kiwinet`.
+Le playbook s'exécute dans l'ordre : `base → ssh → ufw → docker → storage → kiwinet`.
 
 ---
 
@@ -104,6 +105,16 @@ cd /opt/kiwinet-services && docker compose up -d
 cd /opt/kiwinet-observability && docker compose up -d
 ```
 
+### 4. Configurer Plex (connexion locale)
+
+Dans Plex Web → **Paramètres → Réseau → "URL personnalisées pour accéder au serveur"** :
+
+```
+https://plex.kiwinet.me,http://192.168.1.33:32400
+```
+
+Sans cette configuration, les clients Android TV transitent par Traefik et subissent des coupures audio.
+
 ---
 
 ## Opérations de maintenance
@@ -124,6 +135,12 @@ ansible-playbook playbook.yml --tags ssh
 
 ```bash
 ansible-playbook playbook.yml --tags base
+```
+
+### Re-appliquer les montages CIFS uniquement
+
+```bash
+ansible-playbook playbook.yml --tags storage
 ```
 
 ### Dry-run (simulation)

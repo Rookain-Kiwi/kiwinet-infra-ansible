@@ -2,13 +2,14 @@
 # roles/ufw/tasks/main.yml
 # Rôle : ufw — Configuration du firewall
 #
-# Ports ouverts :
-#   22    TCP  → SSH
-#   80    TCP  → HTTP (Let's Encrypt HTTP Challenge + redirection HTTPS)
-#   443   TCP  → HTTPS (Traefik)
-#   25565 TCP  → Minecraft (TCP passthrough Traefik)
-#   1883  TCP  → MQTT Mosquitto (LAN uniquement)
-#   22121 UDP  → WireGuard VPN (Freebox Delta natif)
+# Les règles entrantes sont définies par la variable ufw_rules
+# dans le playbook appelant (playbook-freebox.yml ou playbook-cloud.yml).
+#
+# Structure attendue pour chaque règle :
+#   - port    : numéro de port (string)
+#   - proto   : tcp ou udp
+#   - comment : description de la règle
+#   - src     : (optionnel) restriction à une IP ou un CIDR
 # ─────────────────────────────────────────────
 
 # ── Installation ─────────────────────────────
@@ -30,42 +31,13 @@
 
 # ── Règles entrantes ─────────────────────────
 
-- name: "Autorisation SSH (port 22 TCP)"
+- name: "Application des règles UFW"
   community.general.ufw:
     rule: allow
-    port: "22"
-    proto: tcp
-
-- name: "Autorisation HTTP (port 80 TCP)"
-  community.general.ufw:
-    rule: allow
-    port: "80"
-    proto: tcp
-
-- name: "Autorisation HTTPS (port 443 TCP)"
-  community.general.ufw:
-    rule: allow
-    port: "443"
-    proto: tcp
-
-- name: "Autorisation Minecraft (port 25565 TCP)"
-  community.general.ufw:
-    rule: allow
-    port: "25565"
-    proto: tcp
-
-- name: "Autorisation WireGuard (port 22121 UDP)"
-  community.general.ufw:
-    rule: allow
-    port: "22121"
-    proto: udp
-
-- name: "Restriction MQTT au reseau local (port 1883 TCP)"
-  community.general.ufw:
-    rule: allow
-    port: "1883"
-    proto: tcp
-    src: 192.168.1.0/24
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    src: "{{ item.src | default(omit) }}"
+  loop: "{{ ufw_rules }}"
 
 # ── Activation ───────────────────────────────
 

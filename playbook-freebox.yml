@@ -1,0 +1,32 @@
+# playbook-freebox.yml
+# Playbook Freebox Delta — provisioning complet VM ARM64 depuis zéro
+# Cible : groupe [freebox] (inventory.ini)
+# Ordre d'exécution : base → ssh → ufw → docker → storage → kiwinet
+# Prérequis : accès SSH avec clé kiwinet, sudo sans mot de passe
+
+- name: Provisioning VM Kiwinet (Freebox Delta)
+  hosts: freebox
+  gather_facts: true
+
+  pre_tasks:
+    - name: Vérification architecture ARM64
+      ansible.builtin.fail:
+        msg: "Ce playbook cible uniquement une VM ARM64 (AArch64). Architecture détectée : {{ ansible_architecture }}"
+      when: ansible_architecture != "aarch64"
+
+  vars:
+    ufw_rules:
+      - { port: "22",    proto: tcp, comment: "SSH" }
+      - { port: "80",    proto: tcp, comment: "HTTP" }
+      - { port: "443",   proto: tcp, comment: "HTTPS" }
+      - { port: "25565", proto: tcp, comment: "Minecraft" }
+      - { port: "22121", proto: udp, comment: "WireGuard VPN" }
+      - { port: "1883",  proto: tcp, comment: "MQTT Mosquitto LAN", src: "192.168.1.0/24" }
+
+  roles:
+    - base
+    - ssh
+    - ufw
+    - docker
+    - storage
+    - kiwinet

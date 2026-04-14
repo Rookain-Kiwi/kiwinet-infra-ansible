@@ -1,5 +1,6 @@
 # roles/docker/tasks/main.yml
-# Installation Docker CE + plugin Compose v2 pour ARM64 (Debian)
+# Installation Docker CE + plugin Compose v2 (Debian)
+# Compatible ARM64 (Freebox Delta) et x86_64 (VPS Scaleway)
 # Suit la procédure officielle Docker : ajout du dépôt officiel avant install
 
 - name: Suppression des anciennes versions Docker si présentes
@@ -19,10 +20,11 @@
     keyring: /etc/apt/keyrings/docker.gpg
     state: present
 
-- name: Ajout du dépôt Docker CE (ARM64 / Debian)
+- name: Ajout du dépôt Docker CE (Debian)
   ansible.builtin.apt_repository:
     repo: >-
-      deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.gpg]
+      deb [arch={{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}
+      signed-by=/etc/apt/keyrings/docker.gpg]
       https://download.docker.com/linux/debian
       {{ ansible_distribution_release }} stable
     filename: docker

@@ -1,0 +1,50 @@
+# ─────────────────────────────────────────────
+# roles/kiwinet-web/tasks/main.yml
+# Rôle : kiwinet-web — Déploiement du site kiwinet.me
+#
+# Responsabilités :
+#   1. Création du répertoire /opt/kiwinet-web
+#   2. Clone du repo kiwinet-web (HTTPS — repo public)
+#   3. Premier démarrage du container Nginx Alpine
+#
+# Prérequis manuels AVANT ce rôle (non automatisables) :
+#   - Aucun fichier .env requis (kiwinet-web n'a pas de secrets)
+#
+# Note : pas de meta: reset_connection ici — le rôle user
+# s'en est chargé en amont dans playbook-cloud.yml
+# ─────────────────────────────────────────────
+
+# ── Reset connexion SSH ───────────────────────
+# Nécessaire pour que le groupe docker (ajouté par le rôle docker)
+# soit actif dans la session courante.
+
+- name: "Reset de la connexion SSH pour appliquer le groupe docker"
+  meta: reset_connection
+
+# ── Répertoire /opt ───────────────────────────
+
+- name: "Création du répertoire /opt/kiwinet-web"
+  ansible.builtin.file:
+    path: /opt/kiwinet-web
+    state: directory
+    owner: rookain
+    group: rookain
+    mode: "0755"
+
+# ── Clone du repo ─────────────────────────────
+
+- name: "Clone du repo kiwinet-web"
+  ansible.builtin.git:
+    repo: https://github.com/Rookain-Kiwi/kiwinet-web.git
+    dest: /opt/kiwinet-web
+    version: main
+    update: false
+  become_user: rookain
+
+# ── Démarrage du container ────────────────────
+
+- name: "Démarrage du container kiwinet-web (Nginx Alpine)"
+  community.docker.docker_compose_v2:
+    project_src: /opt/kiwinet-web
+    state: present
+  become_user: rookain

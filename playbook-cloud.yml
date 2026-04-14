@@ -1,0 +1,30 @@
+# playbook-cloud.yml
+# Playbook VPS Scaleway — provisioning site kiwinet-web (x86_64)
+# Cible : groupe [cloud] (inventory.ini)
+# Ordre d'exécution : base → user → ssh → ufw → docker → kiwinet-web
+# Prérequis : accès SSH root avec clé kiwinet_deploy (cloud-init Scaleway)
+
+- name: Provisioning VPS Scaleway (kiwinet-web)
+  hosts: cloud
+  gather_facts: true
+
+  pre_tasks:
+    - name: Vérification architecture x86_64
+      ansible.builtin.fail:
+        msg: "Ce playbook cible uniquement un VPS x86_64 (amd64). Architecture détectée : {{ ansible_architecture }}"
+      when: ansible_architecture != "x86_64"
+
+  vars:
+    ssh_port: 2222
+    ufw_rules:
+      - { port: "2222", proto: tcp, comment: "SSH non-standard" }
+      - { port: "80",   proto: tcp, comment: "HTTP" }
+      - { port: "443",  proto: tcp, comment: "HTTPS" }
+
+  roles:
+    - base
+    - user
+    - ssh
+    - ufw
+    - docker
+    - kiwinet-web

@@ -1,12 +1,16 @@
-# Guide opérationnel — kiwinet-infra-vm
+# Guide opérationnel — kiwinet-infra-ansible
 
-Ce document décrit les étapes complètes pour provisionner la VM Kiwinet depuis un Debian minimal, ainsi que les opérations de maintenance courantes.
+Ce document décrit les étapes complètes pour provisionner les machines Kiwinet
+depuis zéro, ainsi que les opérations de maintenance courantes.
 
 ---
 
-## Création de la VM (Freebox OS)
+## Environnement Freebox Delta (ARM64)
 
-La Freebox Delta injecte la clé SSH via cloud-init au premier démarrage — aucune manipulation manuelle sur la VM n'est nécessaire avant de lancer Ansible.
+### Création de la VM (Freebox OS)
+
+La Freebox Delta injecte la clé SSH via cloud-init au premier démarrage — aucune
+manipulation manuelle sur la VM n'est nécessaire avant de lancer Ansible.
 
 **Étapes dans Freebox OS :**
 
@@ -18,171 +22,173 @@ La Freebox Delta injecte la clé SSH via cloud-init au premier démarrage — au
    cat ~/.ssh/kiwinet.pub
    ```
 5. Mot de passe : laisser vide (authentification par clé uniquement)
-6. **Accès aux disques Freebox : laisser décoché** — les montages CIFS sont gérés par le rôle `storage`, pas par cloud-init
+6. **Accès aux disques Freebox : laisser décoché** — les montages CIFS sont gérés
+   par le rôle `storage`, pas par cloud-init
 7. Suivant → choisir la taille du disque → Terminer
 8. Allumer la VM, attendre qu'une IP apparaisse dans l'interface
 
-**Optionnel mais recommandé :** fixer une IP statique dans Freebox OS (Paramètres DHCP → Baux statiques) pour éviter un changement d'IP après redémarrage.
+**Optionnel mais recommandé :** fixer une IP statique dans Freebox OS
+(Paramètres DHCP → Baux statiques) pour éviter un changement d'IP après redémarrage.
 
----
-
-## Première installation (from scratch)
-
-### Étape 1 : Préparer la machine locale
+### Première installation
 
 ```bash
 # Installer Ansible
 pip install ansible
-
-# Installer les collections requises
 ansible-galaxy collection install community.general community.docker ansible.posix
-```
 
-### Étape 2 : Configurer le repo
+# Cloner le repo
+git clone git@github.com:Rookain-Kiwi/kiwinet-infra-ansible.git
+cd kiwinet-infra-ansible
 
-```bash
-git clone git@github.com:Rookain-Kiwi/kiwinet-infra-vm.git
-cd kiwinet-infra-vm
-
-# Copier la clé CI/CD dans roles/ssh/files/ (répertoire gitignored)
-# La clé kiwinet.pub est déjà injectée par Freebox OS à la création de la VM
+# Copier la clé CI/CD (répertoire gitignored)
 cp ~/.ssh/kiwinet_deploy.pub roles/ssh/files/kiwinet_deploy.pub
 ```
 
-> `kiwinet.pub` n'a pas besoin d'être dans `roles/ssh/files/` — elle est déjà présente
-> sur la VM depuis la création. Seule `kiwinet_deploy.pub` est ajoutée par Ansible.
+> `kiwinet.pub` n'a pas besoin d'être dans `roles/ssh/files/` — elle est déjà
+> présente sur la VM depuis la création. Seule `kiwinet_deploy.pub` est ajoutée par Ansible.
 
-### Étape 3 : Vérifier la connectivité
+### Vérifier la connectivité
 
 ```bash
-ansible kiwinet -m ping
+ansible freebox -m ping
 # Attendu : kiwinet-vm | SUCCESS => { "ping": "pong" }
 ```
 
-### Étape 4 : Lancer le playbook
+### Lancer le playbook
 
 ```bash
-ansible-playbook playbook.yml
+ansible-playbook playbook-freebox.yml
 ```
 
-Le playbook s'exécute dans l'ordre : `base → ssh → ufw → docker → storage → kiwinet`.
+Ordre d'exécution : `base → ssh → ufw → docker → storage → kiwinet`.
 
 ---
 
-## Étapes manuelles post-playbook
+## Environnement VPS Scaleway (x86_64)
 
-Ces étapes ne peuvent pas être automatisées (secrets, fichiers sensibles) :
+### Prérequis
 
-### 1. Déposer les fichiers .env
-
-Chaque stack a besoin de son fichier `.env` :
+Le VPS doit être provisionné via Terraform avant de lancer Ansible :
 
 ```bash
-# Exemple pour Traefik
-scp .env.traefik rookain@kiwinet.me:/opt/kiwinet-services/traefik/.env
+cd ~/GIT/kiwinet-infra-cloud
+terraform apply
+# Noter l'IP flexible en sortie (instance_public_ip)
 ```
 
-### 2. Vérifier acme.json
+Mettre à jour `inventory.ini` avec l'IP retournée :
+
+```ini
+[cloud]
+kiwinet-cloud ansible_host=<instance_public_ip> ansible_port=22
+```
+
+### Vérifier la connectivité
 
 ```bash
-ssh rookain@kiwinet.me
-ls -la /opt/kiwinet-services/traefik/acme.json
-# Attendu : -rw------- 1 rookain rookain
+ansible cloud -m ping
+# Attendu : kiwinet-cloud | SUCCESS => { "ping": "pong" }
 ```
 
-### 3. Démarrer les stacks manuellement
-
-Après dépôt des `.env` :
+### Lancer le playbook
 
 ```bash
-ssh rookain@kiwinet.me
-
-# Traefik en premier (crée le réseau proxy)
-cd /opt/kiwinet-services/traefik && docker compose up -d
-
-# Puis les autres stacks
-cd /opt/kiwinet-services && docker compose up -d
-cd /opt/kiwinet-observability && docker compose up -d
+ansible-playbook playbook-cloud.yml
 ```
 
-### 4. Configurer Plex (connexion locale)
+Ordre d'exécution : `base → user → ssh → ufw → docker → kiwinet-web`.
 
-Dans Plex Web → **Paramètres → Réseau → "URL personnalisées pour accéder au serveur"** :
+### Après le playbook — bascule port SSH
 
+Le rôle `ssh` configure le port 2222. Mettre à jour `inventory.ini` :
+
+```ini
+[cloud]
+kiwinet-cloud ansible_host=<instance_public_ip> ansible_port=2222
 ```
-https://plex.kiwinet.me,http://192.168.1.33:32400
-```
 
-Sans cette configuration, les clients Android TV transitent par Traefik et subissent des coupures audio.
+### Après le playbook — mise à jour DNS et CI/CD
+
+1. **Bluehost** — mettre à jour l'enregistrement A de `kiwinet.me` avec l'IP flexible
+2. **GitHub Secrets** sur `kiwinet-web` — mettre à jour `DEPLOY_HOST` avec l'IP flexible
+3. **`firewall.tf`** dans `kiwinet-infra-cloud` — supprimer la règle port 22 temporaire
 
 ---
 
 ## Opérations de maintenance
 
-### Mettre à jour les règles firewall uniquement
+### Freebox uniquement
 
 ```bash
-ansible-playbook playbook.yml --tags ufw
+# Mettre à jour les règles firewall
+ansible-playbook playbook-freebox.yml --tags ufw
+
+# Re-appliquer le hardening SSH
+ansible-playbook playbook-freebox.yml --tags ssh
+
+# Mettre à jour les packages système
+ansible-playbook playbook-freebox.yml --tags base
+
+# Re-appliquer les montages CIFS
+ansible-playbook playbook-freebox.yml --tags storage
+
+# Dry-run
+ansible-playbook playbook-freebox.yml --check --diff
 ```
 
-### Re-appliquer le hardening SSH
+### Cloud uniquement
 
 ```bash
-ansible-playbook playbook.yml --tags ssh
-```
+# Mettre à jour les règles firewall
+ansible-playbook playbook-cloud.yml --tags ufw
 
-### Mettre à jour les packages système
+# Re-appliquer le hardening SSH
+ansible-playbook playbook-cloud.yml --tags ssh
 
-```bash
-ansible-playbook playbook.yml --tags base
-```
-
-### Re-appliquer les montages CIFS uniquement
-
-```bash
-ansible-playbook playbook.yml --tags storage
-```
-
-### Dry-run (simulation)
-
-```bash
-ansible-playbook playbook.yml --check --diff
+# Dry-run
+ansible-playbook playbook-cloud.yml --check --diff
 ```
 
 ---
 
 ## Dépannage
 
-### Erreur "unreachable"
-
-Vérifier que la VM est démarrée et que la clé SSH est bien celle utilisée dans `ansible.cfg` :
+### Erreur "unreachable" — Freebox
 
 ```bash
 ssh -i ~/.ssh/kiwinet rookain@kiwinet.me
 ```
 
-### Erreur sur le rôle docker (clé GPG)
-
-Si la clé GPG Docker échoue, supprimer le fichier et relancer :
+### Erreur "unreachable" — Cloud
 
 ```bash
+ssh -i ~/.ssh/kiwinet_deploy root@<instance_public_ip>
+```
+
+### Erreur sur le rôle docker (clé GPG)
+
+```bash
+# Freebox
 ssh rookain@kiwinet.me "sudo rm /etc/apt/keyrings/docker.gpg"
-ansible-playbook playbook.yml --tags docker
+ansible-playbook playbook-freebox.yml --tags docker
+
+# Cloud
+ssh -i ~/.ssh/kiwinet_deploy root@<instance_public_ip> "rm /etc/apt/keyrings/docker.gpg"
+ansible-playbook playbook-cloud.yml --tags docker
 ```
 
 ### Erreur architecture
 
-Le playbook refuse de s'exécuter si l'architecture n'est pas AArch64. Vérifier sur la VM :
-
 ```bash
+# Freebox — attendu : aarch64
 uname -m
-# Attendu : aarch64
+
+# Cloud — attendu : x86_64
+uname -m
 ```
 
-### VM test vs VM prod
-
-Ce playbook est conçu pour être exécuté sur une VM à la fois.
-La stratégie de test recommandée est de séquencer, pas de paralléliser :
+### VM test vs VM prod (Freebox)
 
 1. Éteindre la VM prod
 2. Créer et provisionner la VM test (2 CPU, RAM disponible)

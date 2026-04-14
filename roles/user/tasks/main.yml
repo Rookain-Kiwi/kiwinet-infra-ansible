@@ -48,10 +48,16 @@
     group: rookain
     mode: "0700"
 
-# ── Clé SSH ───────────────────────────────────
+# ── Clés SSH ───────────────────────────────────
 
 - name: "Injection de la clé kiwinet_deploy"
   ansible.posix.authorized_key:
     user: rookain
     state: present
     key: "{{ lookup('file', 'roles/ssh/files/kiwinet_deploy.pub') }}"
+
+- name: "Injection de la clé kiwinet (accès manuel)"
+  ansible.posix.authorized_key:
+    user: rookain
+    state: present
+    key: "{{ lookup('file', 'roles/ssh/files/kiwinet.pub') }}"

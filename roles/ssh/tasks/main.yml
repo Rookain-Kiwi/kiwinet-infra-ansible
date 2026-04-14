@@ -58,8 +58,6 @@
   notify: Redémarrage sshd
 
 # ── Port SSH ──────────────────────────────────
-# ssh_port défini dans le playbook appelant (défaut 22 si non spécifié)
-# Sur le cloud : ssh_port=2222 (défini dans playbook-cloud.yml)
 
 - name: Configuration du port SSH
   ansible.builtin.lineinfile:
@@ -68,3 +66,9 @@
     line: "Port {{ ssh_port | default(22) }}"
     state: present
   notify: Redémarrage sshd
+
+- name: Redémarrage immédiat de sshd après changement de port
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+  when: ssh_port is defined and ssh_port != 22

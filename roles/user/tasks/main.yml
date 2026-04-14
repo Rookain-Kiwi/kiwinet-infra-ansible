@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────
+# roles/user/tasks/main.yml
+# Rôle : user — Création de l'utilisateur rookain
+#
+# Responsabilités :
+#   - Création de l'utilisateur rookain
+#   - Ajout au groupe sudo avec droits sans mot de passe
+#   - Création du répertoire .ssh
+#   - Injection de la clé kiwinet_deploy
+#
+# Contexte : rôle spécifique au cloud (VPS Scaleway).
+# Sur Freebox, rookain est créé par Freebox OS via cloud-init.
+# Ce rôle tourne en remote_user=root (connexion initiale Scaleway).
+# ─────────────────────────────────────────────
+
+# ── Création utilisateur ──────────────────────
+
+- name: "Création de l'utilisateur rookain"
+  ansible.builtin.user:
+    name: rookain
+    shell: /bin/bash
+    create_home: true
+    state: present
+
+# ── Droits sudo ───────────────────────────────
+
+- name: "Ajout de rookain au groupe sudo"
+  ansible.builtin.user:
+    name: rookain
+    groups: sudo
+    append: true
+
+- name: "Configuration sudo sans mot de passe pour rookain"
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers.d/rookain
+    line: "rookain ALL=(ALL) NOPASSWD:ALL"
+    create: true
+    mode: "0440"
+    validate: "visudo -cf %s"
+
+# ── Répertoire .ssh ───────────────────────────
+
+- name: "Création du répertoire .ssh"
+  ansible.builtin.file:
+    path: /home/rookain/.ssh
+    state: directory
+    owner: rookain
+    group: rookain
+    mode: "0700"
+
+# ── Clé SSH ───────────────────────────────────
+
+- name: "Injection de la clé kiwinet_deploy"
+  ansible.posix.authorized_key:
+    user: rookain
+    state: present
+    key: "{{ lookup('file', 'roles/ssh/files/kiwinet_deploy.pub') }}"

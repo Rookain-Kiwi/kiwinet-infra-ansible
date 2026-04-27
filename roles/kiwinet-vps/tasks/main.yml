@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────
+# roles/kiwinet-vps/tasks/main.yml
+# Rôle : kiwinet-vps — Déploiement de Traefik sur le VPS Scaleway
+#
+# Responsabilités :
+#   1. Création du répertoire /opt/kiwinet-services
+#   2. Clone du repo kiwinet-services (HTTPS — repo public)
+#   3. Vérification de la présence de acme.vps.json (chmod 600)
+#   4. Démarrage de la stack Traefik VPS
+#
+# Prérequis manuels AVANT ce rôle (non automatisables) :
+#   - acme.vps.json présent et chmod 600 dans /opt/kiwinet-services/traefik/
+#     touch /opt/kiwinet-services/traefik/acme.vps.json
+#     chmod 600 /opt/kiwinet-services/traefik/acme.vps.json
+#
+# Note : le rôle kiwinet-web a déjà effectué meta: reset_connection
+# en amont dans playbook-cloud.yml — pas besoin de le rejouer ici.
+# ─────────────────────────────────────────────
+
+# ── Répertoire /opt ───────────────────────────
+
+- name: "Création du répertoire /opt/kiwinet-services"
+  ansible.builtin.file:
+    path: /opt/kiwinet-services
+    state: directory
+    owner: rookain
+    group: rookain
+    mode: "0755"
+
+# ── Clone du repo ─────────────────────────────
+
+- name: "Clone du repo kiwinet-services (Traefik, Plex, Minecraft, HA)"
+  ansible.builtin.git:
+    repo: https://github.com/Rookain-Kiwi/kiwinet-services.git
+    dest: /opt/kiwinet-services
+    version: main
+    update: false
+  become_user: rookain
+
+# ── Vérification secrets ──────────────────────
+
+- name: "Vérification de la présence de acme.vps.json"
+  ansible.builtin.stat:
+    path: /opt/kiwinet-services/traefik/acme.vps.json
+  register: acme_vps
+
+- name: "Avertissement si acme.vps.json absent"
+  ansible.builtin.debug:
+    msg: >
+      ATTENTION : /opt/kiwinet-services/traefik/acme.vps.json est absent.
+      Créer le fichier avant de relancer ce rôle :
+      touch /opt/kiwinet-services/traefik/acme.vps.json
+      chmod 600 /opt/kiwinet-services/traefik/acme.vps.json
+  when: not acme_vps.stat.exists
+
+- name: "Vérification des permissions de acme.vps.json (chmod 600 requis)"
+  ansible.builtin.file:
+    path: /opt/kiwinet-services/traefik/acme.vps.json
+    mode: "0600"
+  when: acme_vps.stat.exists
+
+# ── Démarrage de la stack ─────────────────────
+
+- name: "Démarrage de la stack Traefik VPS"
+  community.docker.docker_compose_v2:
+    project_src: /opt/kiwinet-services/traefik
+    files:
+      - docker-compose.vps.yml
+    state: present
+  become_user: rookain
+  when: acme_vps.stat.exists

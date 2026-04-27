@@ -5,13 +5,16 @@
 # Responsabilités :
 #   1. Création du répertoire /opt/kiwinet-services
 #   2. Clone du repo kiwinet-services (HTTPS — repo public)
-#   3. Vérification de la présence de acme.vps.json (chmod 600)
-#   4. Démarrage de la stack Traefik VPS
+#   3. Authentification GHCR (docker login) pour CI/CD kiwinet-web
+#   4. Vérification de la présence de acme.vps.json (chmod 600)
+#   5. Démarrage de la stack Traefik VPS
 #
 # Prérequis manuels AVANT ce rôle (non automatisables) :
 #   - acme.vps.json présent et chmod 600 dans /opt/kiwinet-services/traefik/
 #     touch /opt/kiwinet-services/traefik/acme.vps.json
 #     chmod 600 /opt/kiwinet-services/traefik/acme.vps.json
+#   - Variable ghcr_pat définie (ex: ansible-playbook ... -e ghcr_pat=<PAT>)
+#     ou stockée dans Ansible Vault
 #
 # Note : le rôle kiwinet-web a déjà effectué meta: reset_connection
 # en amont dans playbook-cloud.yml — pas besoin de le rejouer ici.
@@ -36,6 +39,29 @@
     version: main
     update: false
   become_user: rookain
+
+# ── Authentification GHCR ─────────────────────
+# Requis pour que la CI/CD (docker compose pull) puisse tirer l'image
+# ghcr.io/rookain-kiwi/kiwinet-web depuis le VPS.
+# Le PAT kiwinet-ghcr-push (rotation : 14/07/2026) doit être fourni
+# via la variable ghcr_pat (extra-vars ou Ansible Vault).
+
+- name: "Authentification Docker sur GHCR"
+  community.docker.docker_login:
+    registry_url: ghcr.io
+    username: Rookain-Kiwi
+    password: "{{ ghcr_pat }}"
+    reauthorize: false
+  become_user: rookain
+  when: ghcr_pat is defined
+
+- name: "Avertissement si ghcr_pat non défini"
+  ansible.builtin.debug:
+    msg: >
+      ATTENTION : la variable ghcr_pat n'est pas définie.
+      Le VPS ne pourra pas puller l'image GHCR — la CI/CD échouera.
+      Relancer avec : ansible-playbook ... -e ghcr_pat=<PAT>
+  when: ghcr_pat is not defined
 
 # ── Vérification secrets ──────────────────────
 

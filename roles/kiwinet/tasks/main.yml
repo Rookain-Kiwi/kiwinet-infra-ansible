@@ -14,6 +14,7 @@
 # Prérequis manuels AVANT ce rôle (non automatisables) :
 #   - Fichiers .env dans chaque répertoire de service
 #   - acme.json présent et chmod 600 dans traefik/
+#   - application.yml Komf dans komf/config/ (contient credentials — non versionné)
 # ─────────────────────────────────────────────
 
 # ── Reset connexion SSH ───────────────────────
@@ -39,13 +40,60 @@
 
 # ── Clone des repos ───────────────────────────
 
-- name: "Clone du repo kiwinet-services (Traefik, Plex, Minecraft, HA)"
+- name: "Clone du repo kiwinet-services (Traefik, Plex, Minecraft, HA, Komga, Komf)"
   ansible.builtin.git:
     repo: https://github.com/Rookain-Kiwi/kiwinet-services.git
     dest: /opt/kiwinet-services
     version: main
     update: false
   become_user: rookain
+
+# ── Komf — prérequis ─────────────────────────
+
+- name: "Création du répertoire de config Komf"
+  ansible.builtin.file:
+    path: /opt/kiwinet-services/komf/config
+    state: directory
+    owner: rookain
+    group: rookain
+    mode: "0755"
+
+- name: "Création du fichier .env vide Komf (requis par docker compose)"
+  ansible.builtin.copy:
+    content: ""
+    dest: /opt/kiwinet-services/komf/.env
+    owner: rookain
+    group: rookain
+    mode: "0644"
+    force: false
+
+- name: "Vérification de la présence du fichier application.yml Komf"
+  ansible.builtin.stat:
+    path: /opt/kiwinet-services/komf/config/application.yml
+  register: komf_config
+
+- name: "Avertissement si application.yml Komf absent"
+  ansible.builtin.debug:
+    msg: >
+      ATTENTION : /opt/kiwinet-services/komf/config/application.yml est absent.
+      Déployer manuellement ce fichier (credentials Komga + clé ComicVine) avant de lancer la stack Komf.
+      Template disponible dans komf/config/application.yml.template
+  when: not komf_config.stat.exists
+
+# ── BedethequeKomga ───────────────────────────
+
+- name: "Clone de BedethequeKomga"
+  ansible.builtin.git:
+    repo: https://github.com/Inervo/BedethequeKomga.git
+    dest: /opt/kiwinet-services/bedetheque-komga
+    version: main
+    update: false
+  become_user: rookain
+
+- name: "Installation des dépendances Python BedethequeKomga"
+  ansible.builtin.pip:
+    requirements: /opt/kiwinet-services/bedetheque-komga/requirements.txt
+    extra_args: "--break-system-packages"
 
 - name: "Clone du repo kiwinet-observability (Prometheus, Grafana, Uptime Kuma)"
   ansible.builtin.git:
@@ -90,4 +138,19 @@
     project_src: /opt/kiwinet-observability/uptime
     state: present
   become_user: rookain
+  ignore_errors: true
+
+- name: "Démarrage de la stack Komga"
+  community.docker.docker_compose_v2:
+    project_src: /opt/kiwinet-services/komga
+    state: present
+  become_user: rookain
+  ignore_errors: true
+
+- name: "Démarrage de la stack Komf"
+  community.docker.docker_compose_v2:
+    project_src: /opt/kiwinet-services/komf
+    state: present
+  become_user: rookain
+  when: komf_config.stat.exists
   ignore_errors: true

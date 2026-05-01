@@ -15,6 +15,7 @@
 #   - Fichiers .env dans chaque répertoire de service
 #   - acme.json présent et chmod 600 dans traefik/
 #   - application.yml Komf dans komf/config/ (contient credentials — non versionné)
+#   - metadata.db Calibre initialisé dans calibre/config/ (voir README calibre)
 # ─────────────────────────────────────────────
 
 # ── Reset connexion SSH ───────────────────────
@@ -40,7 +41,7 @@
 
 # ── Clone des repos ───────────────────────────
 
-- name: "Clone du repo kiwinet-services (Traefik, Plex, Minecraft, HA, Komga, Komf)"
+- name: "Clone du repo kiwinet-services (Traefik, Plex, Minecraft, HA, Komga, Komf, Calibre-Web)"
   ansible.builtin.git:
     repo: https://github.com/Rookain-Kiwi/kiwinet-services.git
     dest: /opt/kiwinet-services
@@ -103,6 +104,32 @@
     update: false
   become_user: rookain
 
+# ── Calibre-Web — prérequis ──────────────────
+
+- name: "Création du répertoire de config Calibre-Web"
+  ansible.builtin.file:
+    path: /opt/kiwinet-services/calibre/config
+    state: directory
+    owner: rookain
+    group: rookain
+    mode: "0755"
+
+- name: "Vérification de la présence du metadata.db Calibre"
+  ansible.builtin.stat:
+    path: /opt/kiwinet-services/calibre/config/metadata.db
+  register: calibre_db
+
+- name: "Avertissement si metadata.db Calibre absent"
+  ansible.builtin.debug:
+    msg: >
+      ATTENTION : /opt/kiwinet-services/calibre/config/metadata.db est absent.
+      Initialiser la base avant de lancer la stack Calibre-Web :
+        calibredb add --empty --library-path /tmp/calibre-init
+        cp /tmp/calibre-init/metadata.db /opt/kiwinet-services/calibre/config/metadata.db
+        chown 1000:1000 /opt/kiwinet-services/calibre/config/metadata.db
+      Voir calibre/README.md pour le détail complet.
+  when: not calibre_db.stat.exists
+
 # ── Vérification secrets ──────────────────────
 
 - name: "Vérification de la présence du fichier .env Traefik"
@@ -153,4 +180,12 @@
     state: present
   become_user: rookain
   when: komf_config.stat.exists
+  ignore_errors: true
+
+- name: "Démarrage de la stack Calibre-Web"
+  community.docker.docker_compose_v2:
+    project_src: /opt/kiwinet-services/calibre
+    state: present
+  become_user: rookain
+  when: calibre_db.stat.exists
   ignore_errors: true

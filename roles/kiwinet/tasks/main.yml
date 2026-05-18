@@ -15,6 +15,7 @@
 #   - Fichiers .env dans chaque répertoire de service
 #   - acme.json présent et chmod 600 dans traefik/
 #   - application.yml Komf dans komf/config/ (contient credentials — non versionné)
+#   - BIOS Amiga dans retroarch/config/retroarch/system/ (non versionné)
 # ─────────────────────────────────────────────
 
 # ── Reset connexion SSH ───────────────────────
@@ -40,7 +41,7 @@
 
 # ── Clone des repos ───────────────────────────
 
-- name: "Clone du repo kiwinet-services (Traefik, Plex, Minecraft, HA, Komga, Komf, Calibre-Web)"
+- name: "Clone du repo kiwinet-services (Traefik, Plex, Minecraft, HA, Komga, Komf, RetroArch)"
   ansible.builtin.git:
     repo: https://github.com/Rookain-Kiwi/kiwinet-services.git
     dest: /opt/kiwinet-services
@@ -103,43 +104,42 @@
     update: false
   become_user: rookain
 
-# ── Calibre-Web — prérequis ──────────────────
-# Stockage intégralement local (hors NAS/CIFS) :
-#   - ./config : base SQLite app.db + configuration Calibre-Web
-#   - ./books  : bibliothèque ebooks (metadata.db Calibre + fichiers EPUB/PDF/MOBI)
+# ── RetroArch — prérequis ─────────────────────
+# Stockage local sur la VM (hors NAS/CIFS) :
+#   - ./config : configuration RetroArch, sauvegardes, states
+#   - ./roms   : ROMs par plateforme — alimenter manuellement après déploiement
 #
-# Le metadata.db est initialisé via docker compose run (mod universal-calibre requis).
-# Le répertoire books doit appartenir à uid/gid 1000 (PUID/PGID du conteneur).
+# BIOS Amiga : obligatoire pour le core PUAE (Amiga 500/1200).
+# Déposer dans /opt/kiwinet-services/retroarch/config/retroarch/system/
+# AVANT le premier démarrage. Voir retroarch/README.md pour les fichiers requis.
 
-- name: "Création du répertoire config Calibre-Web"
+- name: "Création des répertoires RetroArch (config + ROMs)"
   ansible.builtin.file:
-    path: /opt/kiwinet-services/calibre/config
+    path: "{{ item }}"
     state: directory
     owner: "1000"
     group: "1000"
     mode: "0755"
+  loop:
+    - /opt/kiwinet-services/retroarch/config/retroarch/system
+    - /opt/kiwinet-services/retroarch/config/retroarch/saves
+    - /opt/kiwinet-services/retroarch/config/retroarch/states
+    - /opt/kiwinet-services/retroarch/roms/amstrad
+    - /opt/kiwinet-services/retroarch/roms/oric
+    - /opt/kiwinet-services/retroarch/roms/amiga
 
-- name: "Création du répertoire books Calibre-Web"
-  ansible.builtin.file:
-    path: /opt/kiwinet-services/calibre/books
-    state: directory
-    owner: "1000"
-    group: "1000"
-    mode: "0755"
-
-- name: "Vérification de la présence du metadata.db Calibre"
+- name: "Vérification de la présence du .env RetroArch"
   ansible.builtin.stat:
-    path: /opt/kiwinet-services/calibre/books/metadata.db
-  register: calibre_db
+    path: /opt/kiwinet-services/retroarch/.env
+  register: retroarch_env
 
-- name: "Initialisation du metadata.db Calibre via docker compose run"
-  # Le mod universal-calibre est nécessaire pour calibredb — docker compose run
-  # télécharge et installe le mod (~200 MB, prévoir 3-5 minutes).
-  ansible.builtin.command:
-    cmd: docker compose run --rm calibre-web sh -c "calibredb add --empty --library-path /books"
-    chdir: /opt/kiwinet-services/calibre
-  become_user: rookain
-  when: not calibre_db.stat.exists
+- name: "Avertissement si .env RetroArch absent"
+  ansible.builtin.debug:
+    msg: >
+      ATTENTION : /opt/kiwinet-services/retroarch/.env est absent.
+      Définir CUSTOM_USER et PASSWORD pour sécuriser l'accès KasmVNC.
+      Voir retroarch/README.md.
+  when: not retroarch_env.stat.exists
 
 # ── Vérification secrets ──────────────────────
 
@@ -193,9 +193,10 @@
   when: komf_config.stat.exists
   ignore_errors: true
 
-- name: "Démarrage de la stack Calibre-Web"
+- name: "Démarrage de la stack RetroArch"
   community.docker.docker_compose_v2:
-    project_src: /opt/kiwinet-services/calibre
+    project_src: /opt/kiwinet-services/retroarch
     state: present
   become_user: rookain
+  when: retroarch_env.stat.exists
   ignore_errors: true

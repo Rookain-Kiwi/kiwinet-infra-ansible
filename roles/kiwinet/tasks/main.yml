@@ -15,7 +15,6 @@
 #   - Fichiers .env dans chaque répertoire de service
 #   - acme.json présent et chmod 600 dans traefik/
 #   - application.yml Komf dans komf/config/ (contient credentials — non versionné)
-#   - BIOS Amiga dans retroarch/config/retroarch/system/ (non versionné)
 # ─────────────────────────────────────────────
 
 # ── Reset connexion SSH ───────────────────────
@@ -41,7 +40,7 @@
 
 # ── Clone des repos ───────────────────────────
 
-- name: "Clone du repo kiwinet-services (Traefik, Plex, Minecraft, HA, Komga, Komf, RetroArch)"
+- name: "Clone du repo kiwinet-services (Traefik, Plex, Minecraft, HA, Komga, Komf)"
   ansible.builtin.git:
     repo: https://github.com/Rookain-Kiwi/kiwinet-services.git
     dest: /opt/kiwinet-services
@@ -181,6 +180,27 @@
 - name: "Démarrage de la stack Komga"
   community.docker.docker_compose_v2:
     project_src: /opt/kiwinet-services/komga
+    state: present
+  become_user: rookain
+  ignore_errors: true
+
+- name: "Démarrage de la stack Plex"
+  community.docker.docker_compose_v2:
+    project_src: /opt/kiwinet-services/plex
+    state: present
+  become_user: rookain
+  ignore_errors: true
+
+- name: "Démarrage de la stack Minecraft"
+  community.docker.docker_compose_v2:
+    project_src: /opt/kiwinet-services/minecraft
+    state: present
+  become_user: rookain
+  ignore_errors: true
+
+- name: "Démarrage de la stack Home Assistant + Mosquitto"
+  community.docker.docker_compose_v2:
+    project_src: /opt/kiwinet-services/ha
     state: present
   become_user: rookain
   ignore_errors: true

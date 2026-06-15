@@ -16,7 +16,7 @@ Voir [kiwinet-docs](https://github.com/Rookain-Kiwi/kiwinet-docs) pour l'ADR-001
 
 | Playbook | Cible | Architecture | Rôles |
 |---|---|---|---|
-| `playbook-freebox.yml` | VM Freebox Delta | ARM64 | base, ssh, ufw, docker, storage, kiwinet |
+| `playbook-freebox.yml` | VM Freebox Delta | ARM64 | base, ssh, ufw, docker, storage, db, kiwinet |
 | `playbook-cloud.yml` | VPS Scaleway | x86_64 | base, user, ssh, ufw, docker, kiwinet-web |
 
 ## Structure
@@ -34,6 +34,7 @@ kiwinet-infra-ansible/
 │   ├── ufw/                     # Firewall — règles paramétrables par playbook
 │   ├── docker/                  # Docker CE (ARM64 ou AMD64) + plugin Compose v2 + daemon.json DNS
 │   ├── storage/                 # Montages CIFS NAS Freebox (freebox uniquement)
+│   ├── db/                      # Réseau Docker db, volumes PostgreSQL, stacks postgres + pgadmin
 │   ├── kiwinet/                 # Répertoires /opt, clone repos, démarrage stacks
 │   └── kiwinet-web/             # Déploiement container kiwinet-web (cloud uniquement)
 └── docs/

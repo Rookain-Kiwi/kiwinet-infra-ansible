@@ -30,6 +30,39 @@ manipulation manuelle sur la VM n'est nécessaire avant de lancer Ansible.
 **Optionnel mais recommandé :** fixer une IP statique dans Freebox OS
 (Paramètres DHCP → Baux statiques) pour éviter un changement d'IP après redémarrage.
 
+### Prérequis manuels avant le playbook
+
+Certains fichiers de secrets ne sont pas versionnés et doivent être déposés
+manuellement sur la VM avant de lancer le playbook, ou immédiatement après
+selon le service.
+
+**Rôle `db` (PostgreSQL + PgAdmin) :**
+
+```bash
+# Créer les fichiers .env à partir des exemples versionnés
+cp /opt/kiwinet-services/postgres/.env.example /opt/kiwinet-services/postgres/.env
+cp /opt/kiwinet-services/pgadmin/.env.example  /opt/kiwinet-services/pgadmin/.env
+
+# Éditer avec les valeurs réelles
+nano /opt/kiwinet-services/postgres/.env   # POSTGRES_USER, POSTGRES_PASSWORD
+nano /opt/kiwinet-services/pgadmin/.env    # PGADMIN_EMAIL, PGADMIN_PASSWORD
+```
+
+**Rôle `kiwinet` (autres services) :**
+
+```bash
+# Traefik
+nano /opt/kiwinet-services/traefik/.env
+
+# Komf (credentials Komga + clé ComicVine — non versionné)
+# Template disponible dans komf/config/application.yml.template
+nano /opt/kiwinet-services/komf/config/application.yml
+
+# acme.json — doit être un fichier (pas un répertoire)
+touch /opt/kiwinet-services/traefik/acme.json
+chmod 600 /opt/kiwinet-services/traefik/acme.json
+```
+
 ### Première installation
 
 ```bash
@@ -61,7 +94,22 @@ ansible freebox -m ping
 ansible-playbook playbook-freebox.yml
 ```
 
-Ordre d'exécution : `base → ssh → ufw → docker → storage → kiwinet`.
+Ordre d'exécution : `base → ssh → ufw → docker → storage → db → kiwinet`.
+
+### Après le déploiement — créer la base Synapse
+
+Une fois PostgreSQL démarré, créer la base dédiée à Synapse :
+
+```bash
+docker exec -it postgres psql -U <POSTGRES_USER>
+```
+
+```sql
+CREATE DATABASE synapse;
+CREATE USER synapse WITH PASSWORD 'motdepasse';
+GRANT ALL PRIVILEGES ON DATABASE synapse TO synapse;
+\q
+```
 
 ---
 
@@ -133,6 +181,9 @@ ansible-playbook playbook-freebox.yml --tags base
 # Re-appliquer les montages CIFS
 ansible-playbook playbook-freebox.yml --tags storage
 
+# Re-appliquer uniquement la couche db (réseau, volumes, stacks)
+ansible-playbook playbook-freebox.yml --tags db
+
 # Dry-run
 ansible-playbook playbook-freebox.yml --check --diff
 ```
@@ -176,6 +227,37 @@ ansible-playbook playbook-freebox.yml --tags docker
 # Cloud
 ssh -i ~/.ssh/kiwinet_deploy root@<instance_public_ip> "rm /etc/apt/keyrings/docker.gpg"
 ansible-playbook playbook-cloud.yml --tags docker
+```
+
+### PostgreSQL refuse de démarrer
+
+Cause la plus fréquente : permissions incorrectes sur `/var/lib/postgresql/data`.
+
+```bash
+# Vérifier le propriétaire (attendu : 999)
+ls -la /var/lib/postgresql/
+
+# Corriger si nécessaire
+sudo chown -R 999:999 /var/lib/postgresql/data
+
+# Relancer
+cd /opt/kiwinet-services/postgres && docker compose up -d --force-recreate
+```
+
+### PgAdmin inaccessible après démarrage
+
+Vérifier que PgAdmin est sur les deux réseaux `proxy` et `db` :
+
+```bash
+docker inspect pgadmin | grep -A 20 '"Networks"'
+```
+
+Les deux réseaux doivent apparaître. Si `db` est absent, vérifier que le réseau
+existe et relancer la stack :
+
+```bash
+docker network ls | grep db
+cd /opt/kiwinet-services/pgadmin && docker compose up -d --force-recreate
 ```
 
 ### Erreur architecture

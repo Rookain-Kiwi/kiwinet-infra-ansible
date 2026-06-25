@@ -4,16 +4,16 @@
 #
 # Responsabilités :
 #   1. Création du réseau Docker `db`
-#   2. Création et permissions des répertoires de volumes PostgreSQL et PgAdmin
-#   3. Vérification de la présence des fichiers .env (secrets non versionnés)
-#   4. Démarrage des stacks PostgreSQL et PgAdmin
+#   2. Création et permissions des répertoires de volumes PostgreSQL
+#   3. Vérification de la présence du fichier .env (secrets non versionnés)
+#   4. Démarrage de la stack PostgreSQL
 #
 # Prérequis manuels AVANT ce rôle (non automatisables) :
 #   - /opt/kiwinet-services/postgres/.env  (POSTGRES_USER, POSTGRES_PASSWORD)
-#   - /opt/kiwinet-services/pgadmin/.env   (PGADMIN_EMAIL, PGADMIN_PASSWORD)
 #
 # Note : le réseau `proxy` est créé par le rôle kiwinet (via la stack Traefik).
 #        Le réseau `db` est créé ici, indépendamment de Traefik.
+#        PgAdmin est géré sur la VM Freebox (pas sur le VPS).
 # ─────────────────────────────────────────────
 
 # ── Réseau Docker db ──────────────────────────
@@ -50,23 +50,7 @@
       Variables requises : POSTGRES_USER, POSTGRES_PASSWORD
   when: not postgres_env.stat.exists
 
-- name: "Vérification de la présence du fichier .env PgAdmin"
-  ansible.builtin.stat:
-    path: /opt/kiwinet-services/pgadmin/.env
-  register: pgadmin_env
-
-- name: "Avertissement si .env PgAdmin absent"
-  ansible.builtin.debug:
-    msg: >
-      ATTENTION : /opt/kiwinet-services/pgadmin/.env est absent.
-      Créer ce fichier à partir de pgadmin/.env.example avant de lancer la stack.
-      Variables requises : PGADMIN_EMAIL, PGADMIN_PASSWORD
-  when: not pgadmin_env.stat.exists
-
-# ── Démarrage des stacks ──────────────────────
-
-# PostgreSQL doit démarrer en premier — PgAdmin et les futurs
-# services consommateurs dépendent de son healthcheck.
+# ── Démarrage de PostgreSQL ──────────────────
 
 - name: "Démarrage de la stack PostgreSQL"
   community.docker.docker_compose_v2:
@@ -74,11 +58,3 @@
     state: present
   become_user: rookain
   when: postgres_env.stat.exists
-
-- name: "Démarrage de la stack PgAdmin"
-  community.docker.docker_compose_v2:
-    project_src: /opt/kiwinet-services/pgadmin
-    state: present
-  become_user: rookain
-  when: pgadmin_env.stat.exists
-  ignore_errors: true

@@ -1,0 +1,22 @@
+# ─────────────────────────────────────────────
+# roles/block-storage/defaults/main.yml
+# Valeurs par défaut : block storage Scaleway
+# ─────────────────────────────────────────────
+
+# Device brut du block storage (détection automatique possible)
+block_storage_device: /dev/sdb
+
+# Point de montage cible
+block_storage_mount_path: /var/lib/postgresql
+
+# Type de filesystem
+block_storage_fstype: ext4
+
+# Options de montage
+block_storage_mount_opts: defaults,noatime,nofail,x-systemd.automount,x-systemd.device-timeout=10
+
+# Propriétaire et groupe du point de montage
+# UID 999 = utilisateur postgres dans l'image postgres:16-alpine
+block_storage_owner: "999"
+block_storage_group: "999"
+block_storage_mode: "0700"

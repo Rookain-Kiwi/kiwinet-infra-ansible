@@ -1,10 +1,10 @@
 # playbook-cloud.yml
 # Playbook VPS Scaleway — provisioning site kiwinet-web (x86_64)
 # Cible : groupe [cloud] (inventory.ini)
-# Ordre d'exécution : base → user → ssh → ufw → docker → kiwinet-web → kiwinet-vps
+# Ordre d'exécution : base → user → ssh → ufw → docker → block-storage → db → kiwinet-web → kiwinet-vps
 # Prérequis : accès SSH root avec clé kiwinet_deploy (cloud-init Scaleway)
 
-- name: Provisioning VPS Scaleway (kiwinet-web + Traefik)
+- name: Provisioning VPS Scaleway (kiwinet-web + Traefik + PostgreSQL)
   hosts: cloud
   gather_facts: true
 
@@ -27,5 +27,7 @@
     - ssh
     - ufw
     - docker
+    - block-storage  # ← NOUVEAU : Formatage et montage block storage AVANT db
+    - db             # ← db a besoin que /var/lib/postgresql soit monté
     - kiwinet-web
     - kiwinet-vps

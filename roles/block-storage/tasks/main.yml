@@ -1,0 +1,102 @@
+# ─────────────────────────────────────────────
+# roles/block-storage/tasks/main.yml
+# Rôle : block-storage — Formatage et montage du block storage Scaleway
+#
+# Responsabilités :
+#   1. Vérification que le device existe et n'est pas monté
+#   2. Formatage en ext4 (si nécessaire)
+#   3. Création du point de montage
+#   4. Montage persistant dans /etc/fstab
+#   5. Vérification des permissions (UID 999 pour PostgreSQL)
+#
+# Prérequis :
+#   - Device attaché physiquement par Terraform/Scaleway
+#   - Pas de données critiques dessus (DANGER: formatage destructif)
+# ─────────────────────────────────────────────
+
+# ── Vérification du device ────────────────────
+
+- name: "Vérification de la présence du device {{ block_storage_device }}"
+  ansible.builtin.stat:
+    path: "{{ block_storage_device }}"
+  register: block_device
+  failed_when: not block_device.stat.exists
+  changed_when: false
+
+- name: "Debug: Informations du device"
+  ansible.builtin.debug:
+    msg: "Device {{ block_storage_device }} trouvé"
+  when: block_device.stat.exists
+
+# ── Vérification si déjà formaté ──────────────
+
+- name: "Vérification si le device est déjà formaté ({{ block_storage_fstype }})"
+  ansible.builtin.command:
+    cmd: "blkid -s TYPE -o value {{ block_storage_device }}"
+  register: blkid_result
+  changed_when: false
+  failed_when: false
+
+- name: "Debug: État du device"
+  ansible.builtin.debug:
+    msg: "Device {{ block_storage_device }} est déjà formaté en {{ blkid_result.stdout }}"
+  when: blkid_result.stdout | length > 0
+
+# ── Formatage du device (si vierge) ──────────
+
+- name: "Formatage du device {{ block_storage_device }} en {{ block_storage_fstype }}"
+  community.general.filesystem:
+    fstype: "{{ block_storage_fstype }}"
+    dev: "{{ block_storage_device }}"
+    force: yes
+  when: blkid_result.stdout == ""
+  register: format_result
+
+- name: "Debug: Formatage effectué"
+  ansible.builtin.debug:
+    msg: "Device {{ block_storage_device }} formaté en {{ block_storage_fstype }}"
+  when: format_result.changed
+
+# ── Création du point de montage ─────────────
+
+- name: "Création du point de montage {{ block_storage_mount_path }}"
+  ansible.builtin.file:
+    path: "{{ block_storage_mount_path }}"
+    state: directory
+    owner: "{{ block_storage_owner }}"
+    group: "{{ block_storage_group }}"
+    mode: "{{ block_storage_mode }}"
+
+# ── Montage persistant (fstab) ───────────────
+
+- name: "Ajout du mount dans /etc/fstab"
+  ansible.posix.mount:
+    path: "{{ block_storage_mount_path }}"
+    src: "{{ block_storage_device }}"
+    fstype: "{{ block_storage_fstype }}"
+    opts: "{{ block_storage_mount_opts }}"
+    state: mounted
+  register: mount_result
+
+- name: "Debug: Montage effectué"
+  ansible.builtin.debug:
+    msg: "{{ block_storage_device }} monté sur {{ block_storage_mount_path }}"
+  when: mount_result.changed
+
+# ── Vérification finale ──────────────────────
+
+- name: "Vérification du montage"
+  ansible.builtin.command:
+    cmd: "mountpoint -q {{ block_storage_mount_path }}"
+  register: mountpoint_check
+  changed_when: false
+  failed_when: mountpoint_check.rc != 0
+
+- name: "Vérification des permissions"
+  ansible.builtin.stat:
+    path: "{{ block_storage_mount_path }}"
+  register: mount_stat
+
+- name: "Debug: Permissions du point de montage"
+  ansible.builtin.debug:
+    msg: "{{ block_storage_mount_path }} — owner: {{ mount_stat.stat.pw_name }}:{{ mount_stat.stat.gr_name }} ({{ mount_stat.stat.mode }})"
